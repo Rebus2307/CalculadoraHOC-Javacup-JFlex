@@ -1,0 +1,108 @@
+package ejemplo_hoc3;
+
+import java_cup.runtime.Symbol;
+import java.io.FileReader;
+
+class AnalizadorSintactico;
+
+parser code {:
+  FrmHoc3 frmInterfaz;
+
+  public void report_error(String mensaje, Object info) {
+    StringBuilder m = new StringBuilder("Error");
+    if (info instanceof java_cup.runtime.Symbol) {
+      java_cup.runtime.Symbol s = (java_cup.runtime.Symbol) info;
+      if (s.left >= 0) {
+        m.append(" en la línea " + (s.left + 1));
+        if (s.right >= 0)
+          m.append(", columna " + (s.right + 1));
+      }
+    }
+    m.append(" : " + mensaje);
+    System.err.println(m);
+  }
+
+  public void report_fatal_error(String message, Object info) {
+    report_error(message, info);
+    System.exit(1);
+  }
+:}
+
+terminal SEMIC;
+terminal OpSuma, OpResta, OpProd, OpDiv, OpAsig, OpPotencia;
+terminal ParIzq, ParDer;
+terminal Float NUM;
+terminal SymbolHoc VAR;
+terminal SymbolHoc CONST_PRED; /* PI, E, PHI, RAD, etc */
+terminal SymbolHoc BLTIN;      /* sin, cos, atan, etc */
+terminal MENOSUNARIO;
+
+non terminal list;
+non terminal Float asgn, expr;
+
+/* Precedences */
+precedence right OpAsig;
+precedence left OpSuma, OpResta;
+precedence left OpProd, OpDiv;
+precedence left MENOSUNARIO;
+precedence right OpPotencia;
+
+list ::= expr:valExpr SEMIC   {:
+                                frmInterfaz.txtResultSintactico.append(Float.toString(valExpr) + "\n");
+                              :}
+      | list expr:valExpr SEMIC {:
+                                  frmInterfaz.txtResultSintactico.append(Float.toString(valExpr) + "\n");
+                                :}
+      ;
+
+asgn ::= VAR:v OpAsig expr:valExpr {:
+                                  v.val = valExpr;
+                                  RESULT = valExpr;
+                                :}
+      ;
+expr ::= NUM:valNum         {:  RESULT = valNum;     :}
+        |   VAR:refVar           {:  RESULT = refVar.val; :}
+        |   CONST_PRED:refConstPredef    {:  RESULT = refConstPredef.val; :}
+        |   asgn:valAsign        {:  RESULT = valAsign;   :}
+        |   expr:val1 OpSuma expr:val2      {:  RESULT = val1 + val2; :}
+        |   expr:val1 OpResta expr:val2     {:  RESULT = val1 - val2; :}
+        |   expr:val1 OpProd expr:val2      {:  RESULT = val1 * val2; :}
+        |   expr:val1 OpDiv expr:val2       {:  RESULT = val1 / val2; :}
+        |   ParIzq expr:val1 ParDer         {:  RESULT = val1; :}
+        | BLTIN:v ParIzq expr:val1 ParDer {:
+                                            switch(v.FuncPredef) {
+                                                case SIN:
+                                                    RESULT = (float)Math.sin((double)val1);
+                                                    break;
+                                                case COS:
+                                                    RESULT = (float)Math.cos((double)val1);
+                                                    break;
+                                                case ATAN:
+                                                    RESULT = (float)Math.atan((double)val1);
+                                                    break;
+                                                case LOG:
+                                                    RESULT = (float)Math.log((double)val1);
+                                                    break;
+                                                case LOG10:
+                                                    RESULT = (float)Math.log10((double)val1);
+                                                    break;
+                                                case EXP:
+                                                    RESULT = (float)Math.exp((double)val1);
+                                                    break;
+                                                case SQRT:
+                                                    RESULT = (float)Math.sqrt((double)val1);
+                                                    break;
+                                                case INT:
+                                                    RESULT = (float)Math.floor((double)val1);
+                                                    break;
+                                                case ABS:
+                                                    RESULT = (float)Math.abs((double)val1);
+                                                    break;
+                                            }
+                                         :}
+        | OpResta expr:val1 {:  RESULT = -val1; :} %prec MENOSUNARIO
+        | expr:base OpPotencia expr:exponente {:
+                                            RESULT = (float)Math.pow((double) base, (double)exponente);
+                                              :}
+        ;
+
